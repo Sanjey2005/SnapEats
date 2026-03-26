@@ -32,16 +32,21 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(Unit) {
                     try {
-                        // Use first() to get the current user state from the Flow
-                        val user = app.userDao.getUser().first()
-                        startDestination = if (user == null) {
-                            Screen.Profile.route
+                        if (app.currentUserId == -1) {
+                            // Not logged in — show auth screen
+                            startDestination = Screen.Auth.route
                         } else {
-                            Screen.Home.route
+                            // Logged in — check if health profile exists
+                            val user = app.userDao.getUser(app.currentUserId).first()
+                            startDestination = if (user == null) {
+                                Screen.Profile.route
+                            } else {
+                                Screen.Home.route
+                            }
                         }
                     } catch (e: Exception) {
-                        // Fallback to Profile if DB fails
-                        startDestination = Screen.Profile.route
+                        // Fallback to Auth if DB fails
+                        startDestination = Screen.Auth.route
                     }
                 }
 

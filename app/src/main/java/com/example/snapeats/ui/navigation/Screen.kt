@@ -52,6 +52,11 @@ sealed class Screen(
         selectedIcon = Icons.Filled.Favorite,
         unselectedIcon = Icons.Outlined.FavoriteBorder
     )
+
+    object Auth : Screen(
+        route = "auth",
+        title = "Authentication"
+    )
 }
 
 /**
@@ -70,6 +75,6 @@ fun getBottomNavScreens(): List<Screen> = listOf(
  */
 fun getScreenFromRoute(route: String?): Screen? {
     if (route == null) return null
-    return listOf(Screen.Home, Screen.Scan, Screen.Profile, Screen.Recs, Screen.History)
+    return listOf(Screen.Home, Screen.Scan, Screen.Profile, Screen.Recs, Screen.History, Screen.Auth)
         .firstOrNull { it.route == route }
 }

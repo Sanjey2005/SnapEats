@@ -1,6 +1,7 @@
 package com.example.snapeats.ui.history
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.snapeats.data.local.dao.MealLogDao
 import com.example.snapeats.data.local.dao.UserDao
@@ -21,58 +22,27 @@ import java.time.ZoneId
 import java.util.Date
 import java.util.Locale
 
-// ---------------------------------------------------------------------------
-// UiState
-// ---------------------------------------------------------------------------
-
 data class HistoryUiState(
-    /**
-     * Meal logs grouped by human-readable date ("dd MMM yyyy"), in descending
-     * chronological order. Each group is also sorted newest-first.
-     */
     val groupedLogs: Map<String, List<MealLog>> = emptyMap(),
-
-    /**
-     * Daily calorie totals for the past 7 days.
-     * Index 0 = six days ago, index 6 = today.
-     * Days with no logs contribute 0.
-     */
     val weeklyTotals: List<Int> = List(7) { 0 },
-
-    /** Average daily calories over the past 7 days (rounded). */
     val sevenDayAverage: Int = 0,
-
-    /** User's computed daily calorie target from the Harris-Benedict formula. */
     val dailyTarget: Int = 2000,
-
     val isLoading: Boolean = true,
     val error: String? = null,
-
-    /**
-     * ID of the log currently pending deletion.
-     * While this is non-null the row is hidden in the UI and a Snackbar with
-     * "Undo" is visible. After 5 seconds the row is physically deleted.
-     */
     val pendingDeleteId: Int? = null
 )
 
-// ---------------------------------------------------------------------------
-// ViewModel
-// ---------------------------------------------------------------------------
-
 class HistoryViewModel(
     private val mealLogDao: MealLogDao,
-    private val userDao: UserDao
+    private val userDao: UserDao,
+    private val userId: Int
 ) : ViewModel() {
 
-    /** Active countdown Job. Cancelling it reverts the optimistic delete. */
     private var deleteJob: Job? = null
-
-    /** Emits the ID of the row that is optimistically hidden pending deletion. */
     private val _pendingDeleteId = MutableStateFlow<Int?>(null)
 
     val uiState: StateFlow<HistoryUiState> = combine(
-        mealLogDao.getAllMealLogs(), // Flow<List<MealLog>> — Room emits on every change
+        mealLogDao.getAllMealLogs(userId),
         _pendingDeleteId
     ) { allLogs, pendingId ->
         buildUiState(allLogs, pendingId)
@@ -82,24 +52,9 @@ class HistoryViewModel(
         initialValue = HistoryUiState(isLoading = true)
     )
 
-    // -------------------------------------------------------------------------
-    // Public events
-    // -------------------------------------------------------------------------
-
-    /**
-     * Begins the delete flow for [log].
-     *
-     * 1. Any previously pending delete is committed immediately (its Job is
-     *    already cancelled-or-complete, so we just call the DB delete now).
-     * 2. The new log's ID is stored in [_pendingDeleteId] so the UI hides it.
-     * 3. A 5-second countdown Job is launched. When it completes it calls
-     *    [commitPendingDelete] to do the actual Room deletion.
-     */
     fun deleteMealLog(log: MealLog) {
-        // Commit any prior pending delete before starting a new one
         deleteJob?.let { prior ->
             if (prior.isActive) prior.cancel()
-            // Commit the previously-pending id synchronously on this coroutine
             val previousId = _pendingDeleteId.value
             if (previousId != null) {
                 viewModelScope.launch {
@@ -118,28 +73,15 @@ class HistoryViewModel(
         }
     }
 
-    /**
-     * Cancels the pending delete countdown, restoring the row to the list.
-     * Safe to call even if there is no active pending delete.
-     */
     fun undoDelete() {
         deleteJob?.cancel()
         deleteJob = null
         _pendingDeleteId.update { null }
     }
 
-    /**
-     * Returns a flat snapshot of all currently-visible logs.
-     * Used by [PdfExporter] to access raw [MealLog] entities.
-     */
     fun allLogsSnapshot(): List<MealLog> =
         uiState.value.groupedLogs.values.flatten()
 
-    // -------------------------------------------------------------------------
-    // Internal helpers
-    // -------------------------------------------------------------------------
-
-    /** Performs the physical Room deletion for the currently-pending ID. */
     private fun commitPendingDelete() {
         val idToDelete = _pendingDeleteId.value ?: return
         _pendingDeleteId.update { null }
@@ -154,23 +96,20 @@ class HistoryViewModel(
         allLogs: List<MealLog>,
         pendingDeleteId: Int?
     ): HistoryUiState {
-        val user = userDao.getUser().first()
+        val user = userDao.getUser(userId).first()
         val dailyTarget = user?.dailyCalTarget ?: 2000
 
-        // Exclude the row that is currently pending deletion
         val visibleLogs = if (pendingDeleteId != null) {
             allLogs.filter { it.id != pendingDeleteId }
         } else {
             allLogs
         }
 
-        // ---- Group by date string ("dd MMM yyyy"), descending ---------------
         val dateFormatter = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
         val groupedLogs: Map<String, List<MealLog>> = visibleLogs
             .sortedByDescending { it.timestamp }
             .groupBy { log -> dateFormatter.format(Date(log.timestamp)) }
 
-        // ---- Weekly totals (index 0 = 6 days ago, index 6 = today) ----------
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now(zone)
         val weeklyTotals = (6 downTo 0).map { daysAgo ->
@@ -193,5 +132,18 @@ class HistoryViewModel(
             error = null,
             pendingDeleteId = pendingDeleteId
         )
+    }
+
+    companion object {
+        fun factory(
+            mealLogDao: MealLogDao,
+            userDao: UserDao,
+            userId: Int
+        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return HistoryViewModel(mealLogDao, userDao, userId) as T
+            }
+        }
     }
 }

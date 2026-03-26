@@ -19,12 +19,12 @@ interface MealLogDao {
      * Callers should compute these bounds from the desired date using Calendar or LocalDate.
      */
     @Query(
-        "SELECT * FROM meal_log WHERE timestamp >= :startOfDayMs AND timestamp < :endOfDayMs ORDER BY timestamp DESC"
+        "SELECT * FROM meal_log WHERE userId = :userId AND timestamp >= :startOfDayMs AND timestamp < :endOfDayMs ORDER BY timestamp DESC"
     )
-    fun getMealLogsByDate(startOfDayMs: Long, endOfDayMs: Long): Flow<List<MealLog>>
+    fun getMealLogsByDate(startOfDayMs: Long, endOfDayMs: Long, userId: Int = 1): Flow<List<MealLog>>
 
-    @Query("SELECT * FROM meal_log ORDER BY timestamp DESC")
-    fun getAllMealLogs(): Flow<List<MealLog>>
+    @Query("SELECT * FROM meal_log WHERE userId = :userId ORDER BY timestamp DESC")
+    fun getAllMealLogs(userId: Int = 1): Flow<List<MealLog>>
 
     @Delete
     suspend fun deleteMealLog(log: MealLog)

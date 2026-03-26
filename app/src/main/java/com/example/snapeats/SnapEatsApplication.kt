@@ -1,6 +1,7 @@
 package com.example.snapeats
 
 import android.app.Application
+import android.content.Context
 import androidx.room.Room
 import com.example.snapeats.data.local.db.AppDatabase
 import com.example.snapeats.data.remote.api.FatSecretApi
@@ -24,7 +25,7 @@ class SnapEatsApplication : Application() {
             AppDatabase::class.java,
             "snapeats.db"
         )
-            .fallbackToDestructiveMigration()
+            .addMigrations(AppDatabase.MIGRATION_1_2)
             .build()
     }
 
@@ -33,6 +34,17 @@ class SnapEatsApplication : Application() {
     val userDao by lazy { database.userDao() }
     val mealLogDao by lazy { database.mealLogDao() }
     val bmiRecordDao by lazy { database.bmiRecordDao() }
+    val appUserDao by lazy { database.appUserDao() }
+
+    // ─── Auth ─────────────────────────────────────────────────────────────────
+
+    private val prefs by lazy {
+        getSharedPreferences("snapeats_prefs", Context.MODE_PRIVATE)
+    }
+
+    var currentUserId: Int
+        get() = prefs.getInt("current_user_id", -1)
+        set(value) { prefs.edit().putInt("current_user_id", value).apply() }
 
     // ─── Network ──────────────────────────────────────────────────────────────
 

@@ -21,12 +21,14 @@ data class HomeUiState(
     val bmiCategory: String = "",
     val bmiColor: Color = Color(0xFF4CAF50),
     val todayMeals: List<Meal> = emptyList(),
+    val mealsByType: Map<String, List<Meal>> = emptyMap(),
     val isLoading: Boolean = true
 )
 
 class HomeViewModel(
     private val userDao: UserDao,
-    private val mealLogDao: MealLogDao
+    private val mealLogDao: MealLogDao,
+    private val userId: Int
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -41,8 +43,8 @@ class HomeViewModel(
             val (startOfDay, endOfDay) = todayRange()
 
             combine(
-                userDao.getUser(),
-                mealLogDao.getMealLogsByDate(startOfDay, endOfDay)
+                userDao.getUser(userId),
+                mealLogDao.getMealLogsByDate(startOfDay, endOfDay, userId)
             ) { user, mealLogs ->
                 val currentCal = mealLogs.sumOf { it.totalCal }
                 val targetCal = user?.dailyCalTarget ?: 2000
@@ -54,9 +56,12 @@ class HomeViewModel(
                         id = log.id,
                         timestamp = log.timestamp,
                         foods = parseFoodsJson(log.foodsJson),
-                        totalCal = log.totalCal
+                        totalCal = log.totalCal,
+                        mealType = log.mealType
                     )
                 }
+
+                val mealsByType = todayMeals.groupBy { it.mealType }
 
                 HomeUiState(
                     currentCal = currentCal,
@@ -64,6 +69,7 @@ class HomeViewModel(
                     bmiCategory = category,
                     bmiColor = color,
                     todayMeals = todayMeals,
+                    mealsByType = mealsByType,
                     isLoading = false
                 )
             }.collect { state ->
@@ -97,11 +103,6 @@ class HomeViewModel(
         else -> Pair("Obese", Color(0xFFF44336))
     }
 
-    /**
-     * Parses the JSON string stored in MealLog.foodsJson into a list of Food domain objects.
-     * The JSON format is an array of objects with fields matching the Food data class.
-     * Falls back to an empty list if parsing fails.
-     */
     private fun parseFoodsJson(json: String): List<Food> {
         return try {
             com.google.gson.Gson().fromJson(

@@ -1,6 +1,8 @@
 package com.example.snapeats.ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,8 +19,6 @@ import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -34,9 +34,9 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.snapeats.domain.model.Food
 
-private val ColorCarbs = Color(0xFF2196F3)   // blue
-private val ColorFat = Color(0xFFFFC107)     // amber
-private val ColorProtein = Color(0xFF4CAF50) // green
+private val ColorCarbs   = Color(0xFF2196F3)   // blue
+private val ColorFat     = Color(0xFFFFC107)   // amber
+private val ColorProtein = Color(0xFF4CAF50)   // green
 
 @Composable
 fun FoodCard(
@@ -44,9 +44,14 @@ fun FoodCard(
     modifier: Modifier = Modifier
 ) {
     ElevatedCard(
-        modifier = modifier.fillMaxWidth(),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(16.dp)
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, Color(0xFF30363D), RoundedCornerShape(16.dp)),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = Color(0xFF161B22)
+        )
     ) {
         Row(
             modifier = Modifier
@@ -69,19 +74,18 @@ fun FoodCard(
                         modifier = Modifier.size(56.dp)
                     )
                 } else {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.size(56.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(Color(0xFF21262D), RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Rounded.Restaurant,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Rounded.Restaurant,
+                            contentDescription = null,
+                            tint = Color(0xFF8B949E),
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
                 }
             }
@@ -96,22 +100,23 @@ fun FoodCard(
                 ) {
                     Text(
                         text = food.name,
-                        style = MaterialTheme.typography.titleSmall,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFE6EDF3),
                         modifier = Modifier.weight(1f)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     // Calorie badge
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(8.dp)
+                    Box(
+                        modifier = Modifier
+                            .background(Color(0xFF4CAF50), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Text(
                             text = "${food.calories} kcal",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            color = Color.White
                         )
                     }
                 }
@@ -144,15 +149,16 @@ fun FoodCard(
 
         // Offline badge
         if (food.isOffline) {
-            Surface(
-                color = Color(0xFFFFF3E0),
-                modifier = Modifier.fillMaxWidth()
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF21262D))
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
             ) {
                 Text(
                     text = "⚡ Offline data",
                     fontSize = 11.sp,
-                    color = Color(0xFFE65100),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    color = Color(0xFFFFC107)
                 )
             }
         }
@@ -169,7 +175,7 @@ private fun MacroLabel(label: String, value: Float, color: Color) {
         Text(
             text = "$label ${value.toInt()}g",
             fontSize = 11.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = Color(0xFF8B949E)
         )
     }
 }
@@ -189,13 +195,12 @@ private fun MacroBar(
         val h = size.height
         val radius = h / 2f
 
-        val carbsW = (carbs / total) * w
-        val fatW = (fat / total) * w
+        val carbsW   = (carbs / total) * w
+        val fatW     = (fat / total) * w
         val proteinW = (protein / total) * w
 
         var x = 0f
 
-        // Draw carbs segment
         drawRoundRect(
             color = ColorCarbs,
             topLeft = Offset(x, 0f),
@@ -204,7 +209,6 @@ private fun MacroBar(
         )
         x += carbsW
 
-        // Draw fat segment
         if (fatW > 0f) {
             drawRect(
                 color = ColorFat,
@@ -214,7 +218,6 @@ private fun MacroBar(
             x += fatW
         }
 
-        // Draw protein segment — rounded right end
         if (proteinW > 0f) {
             drawRoundRect(
                 color = ColorProtein,

@@ -7,6 +7,7 @@ import androidx.room.PrimaryKey
 data class BMIRecord(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
+    val userId: Int,
     val timestamp: Long,
     val bmi: Float,
     val weight: Float

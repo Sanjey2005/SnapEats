@@ -13,9 +13,9 @@ interface BMIRecordDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecord(record: BMIRecord)
 
-    @Query("SELECT * FROM bmi_record ORDER BY timestamp DESC")
-    fun getAllRecords(): Flow<List<BMIRecord>>
+    @Query("SELECT * FROM bmi_record WHERE userId = :userId ORDER BY timestamp DESC")
+    fun getAllRecords(userId: Int): Flow<List<BMIRecord>>
 
-    @Query("SELECT * FROM bmi_record ORDER BY timestamp DESC LIMIT :limit")
-    fun getRecentRecords(limit: Int): Flow<List<BMIRecord>>
+    @Query("SELECT * FROM bmi_record WHERE userId = :userId ORDER BY timestamp DESC LIMIT :limit")
+    fun getRecentRecords(userId: Int, limit: Int): Flow<List<BMIRecord>>
 }

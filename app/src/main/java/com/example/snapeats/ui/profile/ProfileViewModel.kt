@@ -1,6 +1,7 @@
 package com.example.snapeats.ui.profile
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.snapeats.data.local.dao.BMIRecordDao
 import com.example.snapeats.data.local.dao.UserDao
@@ -11,11 +12,8 @@ import com.example.snapeats.domain.usecase.CalcBMIUseCase
 import com.example.snapeats.domain.usecase.CalcDailyCalUseCase
 import com.example.snapeats.domain.usecase.GoalAdjustment
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -31,7 +29,8 @@ class ProfileViewModel(
     private val userDao: UserDao,
     private val bmiRecordDao: BMIRecordDao,
     private val calcBMIUseCase: CalcBMIUseCase,
-    private val calcDailyCalUseCase: CalcDailyCalUseCase
+    private val calcDailyCalUseCase: CalcDailyCalUseCase,
+    private val userId: Int
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProfileUiState())
@@ -39,7 +38,7 @@ class ProfileViewModel(
 
     init {
         viewModelScope.launch {
-            userDao.getUser().collect { user ->
+            userDao.getUser(userId).collect { user ->
                 val bmiResult = if (user != null) {
                     calcBMIUseCase(weightKg = user.weight, heightCm = user.height)
                 } else null
@@ -55,18 +54,6 @@ class ProfileViewModel(
         }
     }
 
-    /**
-     * Validates the supplied profile values, computes BMI and daily calorie target,
-     * persists a [User] record, and appends a [BMIRecord] to the history log.
-     *
-     * Validation ranges (inclusive):
-     *   - height : 50–250 cm
-     *   - weight : 20–300 kg
-     *   - age    : 5–120 years
-     *
-     * Any validation failure sets [ProfileUiState.errorMessage] and returns early
-     * without touching the database.
-     */
     fun saveProfile(
         heightCm: Float,
         weightKg: Float,
@@ -75,7 +62,6 @@ class ProfileViewModel(
         activityFactor: Float,
         goal: GoalAdjustment = GoalAdjustment.MAINTAIN
     ) {
-        // ── Validation ──────────────────────────────────────────────────────────
         val error = when {
             heightCm < 50f || heightCm > 250f ->
                 "Height must be between 50 and 250 cm."
@@ -107,8 +93,10 @@ class ProfileViewModel(
                     goal = goal
                 )
 
+                val existingUser = userDao.getUserOnce(userId)
                 val user = User(
-                    id = 1,
+                    id = existingUser?.id ?: 0,
+                    userId = userId,
                     height = heightCm,
                     weight = weightKg,
                     age = age,
@@ -122,6 +110,7 @@ class ProfileViewModel(
 
                 bmiRecordDao.insertRecord(
                     BMIRecord(
+                        userId = userId,
                         timestamp = System.currentTimeMillis(),
                         bmi = bmiResult.bmi,
                         weight = weightKg
@@ -156,7 +145,19 @@ class ProfileViewModel(
     }
 
     companion object {
-        /** The five valid Harris-Benedict activity multipliers. */
         val VALID_ACTIVITY_FACTORS = setOf(1.2f, 1.375f, 1.55f, 1.725f, 1.9f)
+
+        fun factory(
+            userDao: UserDao,
+            bmiRecordDao: BMIRecordDao,
+            calcBMIUseCase: CalcBMIUseCase,
+            calcDailyCalUseCase: CalcDailyCalUseCase,
+            userId: Int
+        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return ProfileViewModel(userDao, bmiRecordDao, calcBMIUseCase, calcDailyCalUseCase, userId) as T
+            }
+        }
     }
 }

@@ -32,7 +32,8 @@ sealed class ScanState {
 
 class ScanViewModel(
     private val foodRepository: FoodRepository,
-    private val mealLogDao: MealLogDao
+    private val mealLogDao: MealLogDao,
+    private val userId: Int
 ) : ViewModel() {
 
     private val _scanState = MutableStateFlow<ScanState>(ScanState.Idle)
@@ -174,9 +175,11 @@ class ScanViewModel(
                 val totalCal = foods.sumOf { it.calories }
                 val foodsJson = buildFoodsJson(foods)
                 val mealLog = MealLog(
+                    userId = userId,
                     timestamp = System.currentTimeMillis(),
                     foodsJson = foodsJson,
-                    totalCal = totalCal
+                    totalCal = totalCal,
+                    mealType = detectMealType()
                 )
                 mealLogDao.insertMealLog(mealLog)
                 Log.d(TAG, "MealLog saved — $totalCal kcal, ${foods.size} item(s).")
@@ -189,6 +192,18 @@ class ScanViewModel(
     }
 
     fun resetState() { _scanState.value = ScanState.Idle }
+
+    private fun detectMealType(): String {
+        val hour = java.util.Calendar.getInstance()
+            .get(java.util.Calendar.HOUR_OF_DAY)
+        return when (hour) {
+            in 5..10 -> "Breakfast"
+            in 11..14 -> "Lunch"
+            in 15..17 -> "Snack"
+            in 18..21 -> "Dinner"
+            else -> "Others"
+        }
+    }
 
     private fun buildFoodsJson(foods: List<Food>): String {
         val items = foods.joinToString(",") { f ->
@@ -206,11 +221,12 @@ class ScanViewModel(
         private const val TAG = "ScanViewModel"
         fun factory(
             foodRepository: FoodRepository,
-            mealLogDao: MealLogDao
+            mealLogDao: MealLogDao,
+            userId: Int
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return ScanViewModel(foodRepository, mealLogDao) as T
+                return ScanViewModel(foodRepository, mealLogDao, userId) as T
             }
         }
     }

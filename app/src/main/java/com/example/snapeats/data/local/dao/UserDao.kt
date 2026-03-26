@@ -13,9 +13,9 @@ interface UserDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateUser(user: User)
 
-    @Query("SELECT * FROM user WHERE id = 1 LIMIT 1")
-    fun getUser(): Flow<User?>
+    @Query("SELECT * FROM user WHERE userId = :userId LIMIT 1")
+    fun getUser(userId: Int): Flow<User?>
 
-    @Query("SELECT * FROM user WHERE id = 1 LIMIT 1")
-    suspend fun getUserOnce(): User?
+    @Query("SELECT * FROM user WHERE userId = :userId LIMIT 1")
+    suspend fun getUserOnce(userId: Int): User?
 }

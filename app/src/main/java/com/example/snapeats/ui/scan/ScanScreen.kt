@@ -295,7 +295,7 @@ fun ScanScreen(
                 viewModel.resetState()
             },
             sheetState = bottomSheetState,
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = Color(0xFF161B22)
         ) {
             ScanResultsSheet(
                 foods = displayedFoods,
@@ -398,9 +398,9 @@ private fun ScanOverlay(modifier: Modifier = Modifier) {
                     Brush.horizontalGradient(
                         colors = listOf(
                             Color.Transparent,
-                            Color(0xFF00E5FF).copy(alpha = 0.85f),
+                            Color(0xFF4CAF50).copy(alpha = 0.85f),
                             Color.White,
-                            Color(0xFF00E5FF).copy(alpha = 0.85f),
+                            Color(0xFF4CAF50).copy(alpha = 0.85f),
                             Color.Transparent
                         )
                     )
@@ -416,7 +416,7 @@ private fun CaptureButton(onClick: () -> Unit) {
         modifier = Modifier
             .size(80.dp)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.15f))
+            .background(Color(0xFF4CAF50).copy(alpha = 0.25f))
     ) {
         Button(
             onClick = onClick,
@@ -430,7 +430,7 @@ private fun CaptureButton(onClick: () -> Unit) {
             Icon(
                 imageVector = Icons.Filled.Camera,
                 contentDescription = "Capture",
-                tint = Color.Black,
+                tint = Color(0xFF4CAF50),
                 modifier = Modifier.size(32.dp)
             )
         }
@@ -462,10 +462,11 @@ private fun ScanResultsSheet(
             Text(
                 text = "Detected Foods",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFE6EDF3)
             )
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text("Cancel", color = Color(0xFF8B949E))
             }
         }
 
@@ -479,7 +480,7 @@ private fun ScanResultsSheet(
                 Text(
                     text = "No items.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color(0xFF8B949E)
                 )
             }
         } else {
@@ -504,7 +505,7 @@ private fun ScanResultsSheet(
         }
 
         Surface(
-            tonalElevation = 4.dp,
+            color = Color(0xFF161B22),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -521,20 +522,26 @@ private fun ScanResultsSheet(
                     Text(
                         text = "Total",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFE6EDF3)
                     )
                     Text(
                         text = "$totalCalories kcal",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = Color(0xFF4CAF50)
                     )
                 }
 
                 Button(
                     onClick = onAddToLog,
                     enabled = foods.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF4CAF50),
+                        contentColor = Color.White
+                    )
                 ) {
                     Text("Add to Today's Log")
                 }

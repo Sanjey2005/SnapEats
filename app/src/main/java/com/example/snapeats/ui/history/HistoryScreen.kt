@@ -60,10 +60,6 @@ import com.example.snapeats.ui.components.WeeklyLineChart
 import com.example.snapeats.util.PdfExporter
 import kotlinx.coroutines.launch
 
-// ---------------------------------------------------------------------------
-// Entry point
-// ---------------------------------------------------------------------------
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HistoryScreen(
@@ -106,129 +102,110 @@ fun HistoryScreen(
             ) {
                 CircularProgressIndicator()
             }
-            return@Scaffold
-        }
-
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            verticalArrangement = Arrangement.spacedBy(0.dp)
-        ) {
-            // ----------------------------------------------------------------
-            // Weekly line chart
-            // ----------------------------------------------------------------
-            item(key = "chart") {
-                ElevatedCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Last 7 Days",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        WeeklyLineChart(
-                            weeklyTotals = uiState.weeklyTotals,
-                            dailyTarget = uiState.dailyTarget
-                        )
-                    }
-                }
-            }
-
-            // ----------------------------------------------------------------
-            // 7-day average summary card
-            // ----------------------------------------------------------------
-            item(key = "summary") {
-                SummaryCard(
-                    sevenDayAverage = uiState.sevenDayAverage,
-                    dailyTarget = uiState.dailyTarget,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-            }
-
-            // ----------------------------------------------------------------
-            // Grouped log entries with sticky date headers
-            // ----------------------------------------------------------------
-            if (uiState.groupedLogs.isEmpty()) {
-                item(key = "empty") {
-                    Box(
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
+                item(key = "chart") {
+                    ElevatedCard(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
-                        Text(
-                            text = "No meal logs yet.\nTap the camera button to scan your first meal!",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "Last 7 Days",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            WeeklyLineChart(
+                                weeklyTotals = uiState.weeklyTotals,
+                                dailyTarget = uiState.dailyTarget
+                            )
+                        }
                     }
                 }
-            } else {
-                uiState.groupedLogs.forEach { (dateString, logsForDate) ->
-                    // Sticky date header
-                    stickyHeader(key = "header_$dateString") {
-                        DateHeader(dateString = dateString)
-                    }
 
-                    // Meal log rows with swipe-to-dismiss
-                    items(
-                        items = logsForDate,
-                        key = { log -> log.id }
-                    ) { log ->
-                        SwipeableMealLogRow(
-                            log = log,
-                            onDismissed = {
-                                viewModel.deleteMealLog(log)
-                                scope.launch {
-                                    val result = snackbarHostState.showSnackbar(
-                                        message = "Meal removed",
-                                        actionLabel = "Undo",
-                                        duration = SnackbarDuration.Short
-                                    )
-                                    if (result == SnackbarResult.ActionPerformed) {
-                                        viewModel.undoDelete()
+                item(key = "summary") {
+                    SummaryCard(
+                        sevenDayAverage = uiState.sevenDayAverage,
+                        dailyTarget = uiState.dailyTarget,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
+
+                if (uiState.groupedLogs.isEmpty()) {
+                    item(key = "empty") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No meal logs yet.\nTap the camera button to scan your first meal!",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    uiState.groupedLogs.forEach { (dateString, logsForDate) ->
+                        stickyHeader(key = "header_$dateString") {
+                            DateHeader(dateString = dateString)
+                        }
+
+                        items(
+                            items = logsForDate,
+                            key = { log -> log.id }
+                        ) { log ->
+                            SwipeableMealLogRow(
+                                log = log,
+                                onDismissed = {
+                                    viewModel.deleteMealLog(log)
+                                    scope.launch {
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = "Meal removed",
+                                            actionLabel = "Undo",
+                                            duration = SnackbarDuration.Short
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            viewModel.undoDelete()
+                                        }
                                     }
                                 }
-                            }
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                        )
+                            )
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            )
+                        }
                     }
                 }
-            }
 
-            // ----------------------------------------------------------------
-            // Export PDF button
-            // ----------------------------------------------------------------
-            item(key = "export") {
-                Spacer(modifier = Modifier.height(8.dp))
-                ExportPdfButton(
-                    context = context,
-                    viewModel = viewModel,
-                    userDao = userDao,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
+                item(key = "export") {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ExportPdfButton(
+                        context = context,
+                        viewModel = viewModel,
+                        userDao = userDao,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
             }
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Summary card
-// ---------------------------------------------------------------------------
 
 @Composable
 private fun SummaryCard(
@@ -277,10 +254,6 @@ private fun SummaryCard(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Sticky date header
-// ---------------------------------------------------------------------------
-
 @Composable
 private fun DateHeader(dateString: String) {
     Box(
@@ -297,10 +270,6 @@ private fun DateHeader(dateString: String) {
         )
     }
 }
-
-// ---------------------------------------------------------------------------
-// Swipeable meal log row
-// ---------------------------------------------------------------------------
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -359,10 +328,6 @@ private fun SwipeableMealLogRow(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Export PDF button
-// ---------------------------------------------------------------------------
-
 @Composable
 private fun ExportPdfButton(
     context: Context,
@@ -371,11 +336,12 @@ private fun ExportPdfButton(
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
+    val app = context.applicationContext as com.example.snapeats.SnapEatsApplication
 
     Button(
         onClick = {
             scope.launch {
-                val user = userDao.getUserOnce() ?: return@launch
+                val user = userDao.getUserOnce(app.currentUserId) ?: return@launch
                 val logs = viewModel.allLogsSnapshot()
                 PdfExporter.export(context, user, logs)
             }

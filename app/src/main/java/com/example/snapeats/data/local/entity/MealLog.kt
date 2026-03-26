@@ -7,7 +7,9 @@ import androidx.room.PrimaryKey
 data class MealLog(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
+    val userId: Int,
     val timestamp: Long,
     val foodsJson: String,
-    val totalCal: Int
+    val totalCal: Int,
+    val mealType: String = "Others"
 )

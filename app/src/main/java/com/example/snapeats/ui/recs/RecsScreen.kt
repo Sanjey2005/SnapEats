@@ -48,9 +48,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.snapeats.domain.model.Food
 import com.example.snapeats.ui.components.FoodCard
@@ -72,6 +74,7 @@ fun RecsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val defaultRecommendations by viewModel.defaultRecommendations.collectAsStateWithLifecycle()
     val selectedMealType by viewModel.selectedMealType.collectAsStateWithLifecycle()
     val isVeg by viewModel.isVeg.collectAsStateWithLifecycle()
     val isVegan by viewModel.isVegan.collectAsStateWithLifecycle()
@@ -134,6 +137,8 @@ fun RecsScreen(
             // ----------------------------------------------------------------
             AnimatedContent(
                 targetState = when {
+                    searchQuery.isBlank() && !uiState.isLoading && uiState.error == null && uiState.foods.isEmpty() ->
+                        RecsContentState.Defaults
                     uiState.isLoading -> RecsContentState.Loading
                     uiState.error != null || uiState.foods.isEmpty() -> RecsContentState.Empty
                     else -> RecsContentState.Results
@@ -145,6 +150,9 @@ fun RecsScreen(
                 label = "recs_content"
             ) { contentState ->
                 when (contentState) {
+                    RecsContentState.Defaults -> RecsDefaultsList(
+                        recommendations = defaultRecommendations
+                    )
                     RecsContentState.Loading -> RecsLoadingContent()
                     RecsContentState.Empty -> RecsEmptyContent(
                         message = uiState.error ?: "No meals found for your calorie budget.",
@@ -163,7 +171,7 @@ fun RecsScreen(
 // Content state enum — drives AnimatedContent
 // ---------------------------------------------------------------------------
 
-private enum class RecsContentState { Loading, Empty, Results }
+private enum class RecsContentState { Defaults, Loading, Empty, Results }
 
 // ---------------------------------------------------------------------------
 // TopAppBar
@@ -314,6 +322,50 @@ private fun FilterRow(
                 selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer
             )
         )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Default recommendations list (shown when search query is blank)
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun RecsDefaultsList(recommendations: Map<String, List<Food>>) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            top = 4.dp,
+            bottom = 24.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text(
+                text = "Healthy meal ideas for you",
+                fontSize = 14.sp,
+                color = Color(0xFF8B949E),
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+        recommendations.forEach { (sectionTitle, foods) ->
+            item(key = "section_$sectionTitle") {
+                Text(
+                    text = sectionTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                )
+            }
+            items(
+                items = foods,
+                key = { food -> "${sectionTitle}_${food.name}" }
+            ) { food ->
+                FoodCard(food = food)
+            }
+        }
     }
 }
 

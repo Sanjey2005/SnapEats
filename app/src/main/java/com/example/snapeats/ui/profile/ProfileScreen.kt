@@ -47,8 +47,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.snapeats.domain.usecase.GoalAdjustment
 import com.example.snapeats.ui.components.InputStepper
 
-// ── Activity level descriptor ────────────────────────────────────────────────
-
 private data class ActivityOption(
     val label: String,
     val description: String,
@@ -63,19 +61,6 @@ private val ACTIVITY_OPTIONS = listOf(
     ActivityOption("Extra Active",     "Very hard exercise + physical job",           1.9f)
 )
 
-// ── Screen ───────────────────────────────────────────────────────────────────
-
-/**
- * Profile / Onboarding screen.
- *
- * When [isOnboarding] is true the top-bar title reads "Welcome to SnapEats" and
- * navigation to Home is triggered on the very first successful save.
- * When false (returning user editing their profile) the title reads "My Profile".
- *
- * @param viewModel      Injected [ProfileViewModel].
- * @param isOnboarding   True when no User record exists yet.
- * @param onSaveSuccess  Called after a successful save — navigate to Home from here.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
@@ -86,7 +71,6 @@ fun ProfileScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // ── Pre-fill form from existing user record ──────────────────────────────
     val existingUser = uiState.user
 
     var heightCm        by rememberSaveable { mutableFloatStateOf(existingUser?.height        ?: 170f) }
@@ -95,7 +79,6 @@ fun ProfileScreen(
     var isMale          by rememberSaveable { mutableStateOf(existingUser?.isMale             ?: true) }
     var activityFactor  by rememberSaveable { mutableFloatStateOf(existingUser?.activityFactor ?: 1.2f) }
 
-    // Keep form in sync if the DB value loads after initial composition
     LaunchedEffect(existingUser) {
         if (existingUser != null) {
             heightCm       = existingUser.height
@@ -106,7 +89,6 @@ fun ProfileScreen(
         }
     }
 
-    // ── Field validation ─────────────────────────────────────────────────────
     val heightError = when {
         heightCm < 50f  -> "Minimum 50 cm"
         heightCm > 250f -> "Maximum 250 cm"
@@ -124,7 +106,6 @@ fun ProfileScreen(
     }
     val isFormValid = heightError == null && weightError == null && ageError == null
 
-    // ── Side-effects ─────────────────────────────────────────────────────────
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { msg ->
             snackbarHostState.showSnackbar(msg)
@@ -139,7 +120,6 @@ fun ProfileScreen(
         }
     }
 
-    // ── Layout ───────────────────────────────────────────────────────────────
     Scaffold(
         topBar = {
             TopAppBar(
@@ -162,150 +142,141 @@ fun ProfileScreen(
             ) {
                 CircularProgressIndicator()
             }
-            return@Scaffold
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-
-            // ── BMI Result Card ──────────────────────────────────────────────
-            uiState.bmiResult?.let { result ->
-                BmiCard(
-                    bmi      = result.bmi,
-                    category = result.category,
-                    color    = result.color
-                )
-            }
-
-            // ── Measurements ─────────────────────────────────────────────────
-            SectionLabel("Body Measurements")
-
-            InputStepper(
-                value         = heightCm,
-                onValueChange = { heightCm = it },
-                min           = 50f,
-                max           = 250f,
-                step          = 0.5f,
-                label         = "Height",
-                unit          = " cm"
-            )
-            heightError?.let { FieldError(it) }
-
-            InputStepper(
-                value         = weightKg,
-                onValueChange = { weightKg = it },
-                min           = 20f,
-                max           = 300f,
-                step          = 0.5f,
-                label         = "Weight",
-                unit          = " kg"
-            )
-            weightError?.let { FieldError(it) }
-
-            InputStepper(
-                value         = age.toFloat(),
-                onValueChange = { age = it.toInt() },
-                min           = 5f,
-                max           = 120f,
-                step          = 1f,
-                label         = "Age",
-                unit          = " yrs"
-            )
-            ageError?.let { FieldError(it) }
-
-            // ── Biological Sex ───────────────────────────────────────────────
-            HorizontalDivider()
-            SectionLabel("Biological Sex")
-
-            Row(
-                modifier            = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                listOf(true to "Male", false to "Female").forEach { (value, label) ->
+                uiState.bmiResult?.let { result ->
+                    BmiCard(
+                        bmi      = result.bmi,
+                        category = result.category,
+                        color    = result.color
+                    )
+                }
+
+                SectionLabel("Body Measurements")
+
+                InputStepper(
+                    value         = heightCm,
+                    onValueChange = { heightCm = it },
+                    min           = 50f,
+                    max           = 250f,
+                    step          = 0.5f,
+                    label         = "Height",
+                    unit          = " cm"
+                )
+                heightError?.let { FieldError(it) }
+
+                InputStepper(
+                    value         = weightKg,
+                    onValueChange = { weightKg = it },
+                    min           = 20f,
+                    max           = 300f,
+                    step          = 0.5f,
+                    label         = "Weight",
+                    unit          = " kg"
+                )
+                weightError?.let { FieldError(it) }
+
+                InputStepper(
+                    value         = age.toFloat(),
+                    onValueChange = { age = it.toInt() },
+                    min           = 5f,
+                    max           = 120f,
+                    step          = 1f,
+                    label         = "Age",
+                    unit          = " yrs"
+                )
+                ageError?.let { FieldError(it) }
+
+                HorizontalDivider()
+                SectionLabel("Biological Sex")
+
+                Row(
+                    modifier            = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(true to "Male", false to "Female").forEach { (value, label) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            RadioButton(
+                                selected = isMale == value,
+                                onClick  = { isMale = value }
+                            )
+                            Text(
+                                text  = label,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider()
+                SectionLabel("Activity Level")
+
+                ACTIVITY_OPTIONS.forEach { option ->
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
+                        modifier          = Modifier.fillMaxWidth()
                     ) {
                         RadioButton(
-                            selected = isMale == value,
-                            onClick  = { isMale = value }
+                            selected = activityFactor == option.factor,
+                            onClick  = { activityFactor = option.factor }
                         )
-                        Text(
-                            text  = label,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text  = option.label,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text  = option.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
-            }
 
-            // ── Activity Level ───────────────────────────────────────────────
-            HorizontalDivider()
-            SectionLabel("Activity Level")
+                Spacer(modifier = Modifier.height(8.dp))
 
-            ACTIVITY_OPTIONS.forEach { option ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier          = Modifier.fillMaxWidth()
+                Button(
+                    onClick = {
+                        viewModel.saveProfile(
+                            heightCm       = heightCm,
+                            weightKg       = weightKg,
+                            age            = age,
+                            isMale         = isMale,
+                            activityFactor = activityFactor,
+                            goal           = GoalAdjustment.MAINTAIN
+                        )
+                    },
+                    enabled  = isFormValid && !uiState.isLoading,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    RadioButton(
-                        selected = activityFactor == option.factor,
-                        onClick  = { activityFactor = option.factor }
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text  = option.label,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium
+                    if (uiState.isLoading) {
+                        CircularProgressIndicator(
+                            modifier  = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color     = MaterialTheme.colorScheme.onPrimary
                         )
-                        Text(
-                            text  = option.description,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    } else {
+                        Text(if (isOnboarding) "Get Started" else "Save Profile")
                     }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
             }
-
-            // ── Save Button ──────────────────────────────────────────────────
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Button(
-                onClick = {
-                    viewModel.saveProfile(
-                        heightCm       = heightCm,
-                        weightKg       = weightKg,
-                        age            = age,
-                        isMale         = isMale,
-                        activityFactor = activityFactor,
-                        goal           = GoalAdjustment.MAINTAIN
-                    )
-                },
-                enabled  = isFormValid && !uiState.isLoading,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (uiState.isLoading) {
-                    CircularProgressIndicator(
-                        modifier  = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color     = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text(if (isOnboarding) "Get Started" else "Save Profile")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
-
-// ── Private sub-composables ───────────────────────────────────────────────────
 
 @Composable
 private fun BmiCard(
@@ -319,7 +290,6 @@ private fun BmiCard(
         label = "bmi_card_color"
     )
 
-    // Choose a text colour that is legible against the card background
     val contentColor = if (animatedColor.luminance() > 0.4f) Color.Black else Color.White
 
     Card(

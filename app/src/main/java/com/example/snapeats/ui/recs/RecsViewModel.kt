@@ -1,6 +1,7 @@
 package com.example.snapeats.ui.recs
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.snapeats.data.local.dao.MealLogDao
 import com.example.snapeats.data.local.dao.UserDao
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import java.time.LocalDate
@@ -33,7 +35,8 @@ data class RecsUiState(
 class RecsViewModel(
     private val userDao: UserDao,
     private val mealLogDao: MealLogDao,
-    private val foodRepository: FoodRepository
+    private val foodRepository: FoodRepository,
+    private val userId: Int
 ) : ViewModel() {
 
     // Raw search query typed by the user
@@ -50,6 +53,49 @@ class RecsViewModel(
 
     private val _isVegan = MutableStateFlow(false)
     val isVegan: StateFlow<Boolean> = _isVegan.asStateFlow()
+
+    // Pre-filled healthy Indian meal recommendations shown when search is blank
+    val defaultRecommendations: StateFlow<Map<String, List<Food>>> = _searchQuery
+        .map { query ->
+            if (query.isBlank()) {
+            linkedMapOf(
+                "🌅 Breakfast" to listOf(
+                    Food("Idli (2 pieces)",           116, 22f, 1f,  4f,  "", true),
+                    Food("Masala Dosa",               210, 32f, 7f,  5f,  "", true),
+                    Food("Upma",                      145, 25f, 4f,  4f,  "", true),
+                    Food("Poha",                      130, 26f, 2f,  3f,  "", true),
+                    Food("Oats Porridge",             150, 27f, 3f,  5f,  "", true)
+                ),
+                "☀️ Lunch" to listOf(
+                    Food("Dal Tadka with Rice",       280, 52f, 4f,  12f, "", true),
+                    Food("Rajma Chawal",              340, 62f, 4f,  14f, "", true),
+                    Food("Chole with Roti",           310, 48f, 8f,  12f, "", true),
+                    Food("Palak Paneer with Roti",    290, 34f, 12f, 13f, "", true),
+                    Food("Chicken Biryani",           400, 55f, 12f, 22f, "", true)
+                ),
+                "🌙 Dinner" to listOf(
+                    Food("Grilled Chicken with Salad", 250, 8f,  8f,  35f, "", true),
+                    Food("Dal Khichdi",               260, 45f, 5f,  10f, "", true),
+                    Food("Paneer Bhurji with Roti",   320, 30f, 14f, 18f, "", true),
+                    Food("Vegetable Soup",             80, 12f, 2f,  3f,  "", true),
+                    Food("Egg Curry with Rice",        350, 45f, 12f, 18f, "", true)
+                ),
+                "🍎 Snack" to listOf(
+                    Food("Fruit Chaat",               120, 28f, 1f,  2f,  "", true),
+                    Food("Roasted Chana",             164, 27f, 3f,  9f,  "", true),
+                    Food("Sprouts Salad",             100, 18f, 1f,  7f,  "", true),
+                    Food("Greek Yogurt",              100, 6f,  0f,  17f, "", true),
+                    Food("Mixed Nuts (30g)",          180, 6f,  16f, 5f,  "", true)
+                )
+            )
+        } else {
+            emptyMap()
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyMap()
+    )
 
     // Debounced query used for API calls — waits 400 ms after user stops typing
     private val debouncedQuery: StateFlow<String> = _searchQuery
@@ -127,7 +173,7 @@ class RecsViewModel(
 
         try {
             // 1. Load user profile to get daily calorie target and BMI
-            val user = userDao.getUser().first()
+            val user = userDao.getUser(userId).first()
                 ?: run {
                     emit(RecsUiState(error = "Profile not set up. Please complete onboarding."))
                     return@flow
@@ -139,7 +185,7 @@ class RecsViewModel(
                 .toInstant()
                 .toEpochMilli()
             val todayEnd = todayStart + 86_400_000L
-            val todayLogs = mealLogDao.getMealLogsByDate(todayStart, todayEnd).first()
+            val todayLogs = mealLogDao.getMealLogsByDate(todayStart, todayEnd, userId).first()
             val consumed = todayLogs.sumOf { it.totalCal }
 
             // 3. Compute remaining calorie budget
@@ -206,5 +252,19 @@ class RecsViewModel(
         else if (isVeg) parts.add("vegetarian")
 
         return parts.joinToString(" ")
+    }
+
+    companion object {
+        fun factory(
+            userDao: UserDao,
+            mealLogDao: MealLogDao,
+            foodRepository: FoodRepository,
+            userId: Int
+        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return RecsViewModel(userDao, mealLogDao, foodRepository, userId) as T
+            }
+        }
     }
 }

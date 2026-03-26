@@ -4,5 +4,6 @@ data class Meal(
     val id: Int,
     val timestamp: Long,
     val foods: List<Food>,
-    val totalCal: Int
+    val totalCal: Int,
+    val mealType: String = "Others"
 )
