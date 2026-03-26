@@ -11,23 +11,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
-/**
- * Repository responsible for searching food nutritional data.
- *
- * Strategy:
- * 1. Call the FatSecret Platform API via [FatSecretApi].
- * 2. Parse the `food_description` field of the first result.
- * 3. On any [Exception] (network unavailable, timeout, HTTP error, parse failure),
- *    fall back to [LocalFoodDatabase] and return a [Food] with [Food.isOffline] = true.
- *
- * Constructed manually (no Hilt/Dagger) — a singleton instance should be created
- * in `SnapEatsApplication` and provided to ViewModels via their factory.
- */
 class FoodRepository {
-
-    // -------------------------------------------------------------------------
-    // Retrofit / OkHttp setup
-    // -------------------------------------------------------------------------
 
     private val api: FatSecretApi by lazy {
         val logging = HttpLoggingInterceptor().apply {
@@ -52,31 +36,30 @@ class FoodRepository {
             .create(FatSecretApi::class.java)
     }
 
-    // -------------------------------------------------------------------------
-    // Public API
-    // -------------------------------------------------------------------------
-
-    /**
-     * Search for a food by [query] and return a [Food] domain model.
-     *
-     * The FatSecret `food_description` field looks like:
-     * `"Per 100g - Calories: 52kcal | Fat: 0.17g | Carbs: 13.81g | Protein: 0.26g"`
-     *
-     * This function parses those values and converts them to the types expected
-     * by [Food]. If anything goes wrong (network error, missing fields, parse
-     * exception), it falls back to [LocalFoodDatabase].
-     *
-     * @param query The food name / keyword (typically the ML Kit label text).
-     * @return      A [Food] populated with nutritional data.
-     */
     suspend fun searchFood(query: String): Food {
         return try {
             val response = api.searchFoods(query = query)
-            val firstItem = response.foods?.food?.firstOrNull()
-                ?: return offlineFallback(query)
+
+            val allItems = response.foods?.food ?: return offlineFallback(query)
+            if (allItems.isEmpty()) return offlineFallback(query)
+
+            val lowerQuery = query.lowercase()
+            val firstItem = allItems.minByOrNull { item ->
+                val name = item.food_name.lowercase()
+                when {
+                    name == lowerQuery -> 0
+                    name.contains(lowerQuery) -> 1
+                    lowerQuery.contains(name) -> 2
+                    else -> 3
+                }
+            } ?: return offlineFallback(query)
 
             val parsed = parseDescription(firstItem.food_description)
                 ?: return offlineFallback(query)
+
+            // Reject unrealistic calorie values — bulk/commercial DB entries
+            // No real food exceeds 900 kcal per 100g (pure butter is ~717)
+            if (parsed.calories > 900) return offlineFallback(query)
 
             Food(
                 name = firstItem.food_name,
@@ -93,22 +76,8 @@ class FoodRepository {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Description parser
-    // -------------------------------------------------------------------------
-
-    /**
-     * Parses the FatSecret `food_description` string.
-     *
-     * Expected format (may vary slightly):
-     * `"Per 100g - Calories: 52kcal | Fat: 0.17g | Carbs: 13.81g | Protein: 0.26g"`
-     *
-     * @return A [ParsedNutrition] on success, or null if required fields are missing.
-     */
     private fun parseDescription(description: String): ParsedNutrition? {
         return try {
-            // Extract each value with a tolerant regex that handles integer or
-            // decimal amounts and optional spaces around the colon.
             val calories = REGEX_CALORIES.find(description)
                 ?.groupValues?.get(1)?.trim()?.toFloatOrNull()?.toInt()
                 ?: return null
@@ -132,26 +101,12 @@ class FoodRepository {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Offline fallback
-    // -------------------------------------------------------------------------
-
-    /**
-     * Searches [LocalFoodDatabase] for the best matching food name using
-     * [String.contains]. Returns the first match found, or a generic 100 kcal
-     * placeholder if nothing matches.
-     *
-     * The returned [Food] always has [Food.isOffline] = true so the UI can
-     * show the offline badge.
-     */
     private fun offlineFallback(query: String): Food {
         val lowerQuery = query.lowercase()
 
-        // 1. Try: does an entry key contain the query word?
         val directMatch = LocalFoodDatabase.foods.entries
             .firstOrNull { (key, _) -> key.contains(lowerQuery) }
 
-        // 2. Try: does the query contain an entry key?
         val reverseMatch = if (directMatch == null) {
             LocalFoodDatabase.foods.entries
                 .firstOrNull { (key, _) -> lowerQuery.contains(key) }
@@ -170,7 +125,6 @@ class FoodRepository {
                 isOffline = true
             )
         } else {
-            // No match at all — return a generic placeholder.
             Food(
                 name = query.replaceFirstChar { it.uppercase() },
                 calories = 100,
@@ -183,20 +137,9 @@ class FoodRepository {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Macro estimators for offline data
-    // -------------------------------------------------------------------------
-
-    // These are rough typical macro ratios used only when the offline DB
-    // has calories but not individual macro data.
-
-    private fun estimateCarbs(calories: Int): Float = (calories * 0.50f / 4f)   // ~50 % of kcal from carbs
-    private fun estimateFat(calories: Int): Float = (calories * 0.30f / 9f)     // ~30 % of kcal from fat
-    private fun estimateProtein(calories: Int): Float = (calories * 0.20f / 4f) // ~20 % of kcal from protein
-
-    // -------------------------------------------------------------------------
-    // Private helpers / companion
-    // -------------------------------------------------------------------------
+    private fun estimateCarbs(calories: Int): Float = (calories * 0.50f / 4f)
+    private fun estimateFat(calories: Int): Float = (calories * 0.30f / 9f)
+    private fun estimateProtein(calories: Int): Float = (calories * 0.20f / 4f)
 
     private data class ParsedNutrition(
         val calories: Int,
@@ -208,7 +151,6 @@ class FoodRepository {
     companion object {
         private const val TAG = "FoodRepository"
 
-        // Regex patterns — case-insensitive, tolerant of spacing variations.
         private val REGEX_CALORIES = Regex("""[Cc]alories\s*:\s*([\d.]+)\s*kcal""")
         private val REGEX_FAT      = Regex("""[Ff]at\s*:\s*([\d.]+)\s*g""")
         private val REGEX_CARBS    = Regex("""[Cc]arbs?\s*:\s*([\d.]+)\s*g""")

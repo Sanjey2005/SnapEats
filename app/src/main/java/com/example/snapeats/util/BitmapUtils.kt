@@ -46,4 +46,13 @@ object BitmapUtils {
 
         return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, /* filter= */ true)
     }
+
+    fun toBase64(bitmap: Bitmap): String {
+        val outputStream = java.io.ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
+        return android.util.Base64.encodeToString(
+            outputStream.toByteArray(), 
+            android.util.Base64.NO_WRAP
+        )
+    }
 }

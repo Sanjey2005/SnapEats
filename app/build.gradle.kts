@@ -7,7 +7,7 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-// Read FatSecret API keys from local.properties
+// Read API keys from local.properties
 val localProperties = Properties().apply {
     val propsFile = rootProject.file("local.properties")
     if (propsFile.exists()) load(propsFile.inputStream())
@@ -38,6 +38,16 @@ android {
             "String",
             "FATSECRET_CONSUMER_SECRET",
             "\"${localProperties.getProperty("FATSECRET_CONSUMER_SECRET", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "NIM_API_KEY",
+            "\"${localProperties.getProperty("NIM_API_KEY", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "GROQ_API_KEY",
+            "\"${localProperties.getProperty("GROQ_API_KEY", "")}\""
         )
     }
 
@@ -127,15 +137,6 @@ dependencies {
     implementation("androidx.camera:camera-camera2:1.3.4")
     implementation("androidx.camera:camera-lifecycle:1.3.4")
     implementation("androidx.camera:camera-view:1.3.4")
-
-    // -------------------------------------------------------------------------
-    // Google ML Kit — on-device object detection & image labeling
-    // -------------------------------------------------------------------------
-    implementation("com.google.mlkit:object-detection:17.0.2")
-    implementation("com.google.mlkit:image-labeling:17.0.9")
-
-    // Coroutines Play Services integration for .await()
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
 
     // -------------------------------------------------------------------------
     // Networking — Retrofit + OkHttp + Gson converter
