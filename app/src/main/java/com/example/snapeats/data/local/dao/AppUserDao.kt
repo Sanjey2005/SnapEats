@@ -20,4 +20,7 @@ interface AppUserDao {
 
     @Query("SELECT * FROM app_user WHERE id = :id LIMIT 1")
     suspend fun findById(id: Int): AppUser?
+
+    @Query("UPDATE app_user SET passwordHash = :newHash WHERE id = :userId")
+    suspend fun updatePassword(userId: Int, newHash: String)
 }

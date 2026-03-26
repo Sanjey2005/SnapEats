@@ -10,11 +10,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -39,9 +42,11 @@ import com.example.snapeats.ui.auth.AuthViewModel
 
 @Composable
 fun SnapEatsNavGraph(
-    startDestination: String = Screen.Home.route,
+    startDestination: String,
+    userId: Int,
 ) {
     val navController = rememberNavController()
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         bottomBar = {
@@ -66,11 +71,15 @@ fun SnapEatsNavGraph(
                     )
                 AuthScreen(
                     viewModel = authViewModel,
-                    onAuthSuccess = { userId ->
-                        app.currentUserId = userId
-                        navController.navigate(Screen.Profile.route) {
-                            popUpTo(Screen.Auth.route) { inclusive = true }
-                            launchSingleTop = true
+                    onAuthSuccess = { loggedInUserId ->
+                        app.currentUserId = loggedInUserId
+                        scope.launch {
+                            val hasProfile = app.userDao.getUser(loggedInUserId).first() != null
+                            val destination = if (hasProfile) Screen.Home.route else Screen.Profile.route
+                            navController.navigate(destination) {
+                                popUpTo(Screen.Auth.route) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         }
                     }
                 )
@@ -146,9 +155,17 @@ fun SnapEatsNavGraph(
                 ProfileScreen(
                     viewModel    = profileViewModel,
                     isOnboarding = false,
+                    appUserDao   = app.appUserDao,
                     onSaveSuccess = {
                         navController.navigate(Screen.Home.route) {
                             popUpTo(Screen.Profile.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onSignOut = {
+                        app.currentUserId = -1
+                        navController.navigate(Screen.Auth.route) {
+                            popUpTo(0) { inclusive = true }
                             launchSingleTop = true
                         }
                     },

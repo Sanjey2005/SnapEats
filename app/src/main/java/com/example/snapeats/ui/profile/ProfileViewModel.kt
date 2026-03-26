@@ -22,7 +22,10 @@ data class ProfileUiState(
     val bmiResult: BMIResult? = null,
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
-    val isSaveSuccess: Boolean = false
+    val isSaveSuccess: Boolean = false,
+    val showChangePassword: Boolean = false,
+    val passwordChangeSuccess: Boolean = false,
+    val passwordChangeError: String? = null
 )
 
 class ProfileViewModel(
@@ -142,6 +145,63 @@ class ProfileViewModel(
 
     fun clearSaveSuccess() {
         _uiState.update { it.copy(isSaveSuccess = false) }
+    }
+
+    fun changePassword(
+        appUserDao: com.example.snapeats.data.local.dao.AppUserDao,
+        currentPassword: String,
+        newPassword: String,
+        confirmPassword: String
+    ) {
+        if (currentPassword.isBlank() || newPassword.isBlank() || confirmPassword.isBlank()) {
+            _uiState.update { it.copy(passwordChangeError = "All fields are required.") }
+            return
+        }
+        if (newPassword.length < 6) {
+            _uiState.update { it.copy(passwordChangeError = "New password must be at least 6 characters.") }
+            return
+        }
+        if (newPassword != confirmPassword) {
+            _uiState.update { it.copy(passwordChangeError = "New passwords do not match.") }
+            return
+        }
+        viewModelScope.launch {
+            val currentHash = sha256(currentPassword)
+            val user = appUserDao.findById(userId)
+            if (user == null || user.passwordHash != currentHash) {
+                _uiState.update { it.copy(passwordChangeError = "Current password is incorrect.") }
+                return@launch
+            }
+            val newHash = sha256(newPassword)
+            appUserDao.updatePassword(userId, newHash)
+            _uiState.update { it.copy(
+                passwordChangeSuccess = true,
+                passwordChangeError = null,
+                showChangePassword = false
+            )}
+        }
+    }
+
+    fun toggleChangePassword() {
+        _uiState.update { it.copy(
+            showChangePassword = !it.showChangePassword,
+            passwordChangeError = null,
+            passwordChangeSuccess = false
+        )}
+    }
+
+    fun clearPasswordStatus() {
+        _uiState.update { it.copy(
+            passwordChangeSuccess = false,
+            passwordChangeError = null
+        )}
+    }
+
+    private fun sha256(input: String): String {
+        val bytes = java.security.MessageDigest
+            .getInstance("SHA-256")
+            .digest(input.toByteArray())
+        return bytes.joinToString("") { "%02x".format(it) }
     }
 
     companion object {

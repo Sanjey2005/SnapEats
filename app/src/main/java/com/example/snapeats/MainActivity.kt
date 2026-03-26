@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -52,7 +53,12 @@ class MainActivity : ComponentActivity() {
 
                 // Only compose the navigation graph once we know the correct start destination.
                 startDestination?.let { destination ->
-                    SnapEatsNavGraph(startDestination = destination)
+                    key(destination) {
+                        SnapEatsNavGraph(
+                            startDestination = destination,
+                            userId = app.currentUserId
+                        )
+                    }
                 }
             }
         }

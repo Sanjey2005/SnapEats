@@ -169,6 +169,12 @@ class RecsViewModel(
     )
 
     private fun fetchRecommendations(params: SearchParams) = flow<RecsUiState> {
+        // When no active search/filter, let defaultRecommendations handle the UI
+        if (params.query.isBlank() && params.mealType == "All" && !params.isVeg && !params.isVegan) {
+            emit(RecsUiState(isLoading = false, foods = emptyList()))
+            return@flow
+        }
+
         emit(RecsUiState(isLoading = true))
 
         try {
