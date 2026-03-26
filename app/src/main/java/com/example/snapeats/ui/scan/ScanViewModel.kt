@@ -62,7 +62,7 @@ class ScanViewModel(
         }
     }
 
-    private suspend fun analyzeImageWithGroq(bitmap: Bitmap): List<String> {
+    private fun analyzeImageWithGroq(bitmap: Bitmap): List<String> {
         return try {
             val base64Image = BitmapUtils.toBase64(bitmap)
             val client = OkHttpClient.Builder()
@@ -202,10 +202,6 @@ class ScanViewModel(
     private fun String.escapeJson(): String =
         replace("\\", "\\\\").replace("\"", "\\\"")
 
-    override fun onCleared() {
-        super.onCleared()
-    }
-
     companion object {
         private const val TAG = "ScanViewModel"
         fun factory(
@@ -213,7 +209,7 @@ class ScanViewModel(
             mealLogDao: MealLogDao
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 return ScanViewModel(foodRepository, mealLogDao) as T
             }
         }

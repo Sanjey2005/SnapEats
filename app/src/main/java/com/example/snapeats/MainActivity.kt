@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.snapeats.ui.navigation.SnapEatsNavGraph
 import com.example.snapeats.ui.navigation.Screen
 import com.example.snapeats.ui.theme.SnapEatsTheme
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.first
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
