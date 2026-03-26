@@ -13,10 +13,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.snapeats.ui.history.HistoryScreen
 import com.example.snapeats.ui.home.HomeScreen
 import com.example.snapeats.ui.profile.ProfileScreen
@@ -57,11 +59,22 @@ fun SnapEatsNavGraph(
                 )
                 HomeScreen(
                     viewModel           = homeViewModel,
-                    onNavigateToScan    = { navController.navigate(Screen.Scan.route) },
+                    onNavigateToScan    = { source -> 
+                        navController.navigate("${Screen.Scan.route}?source=$source") 
+                    },
                 )
             }
 
-            composable(route = Screen.Scan.route) {
+            composable(
+                route = "${Screen.Scan.route}?source={source}",
+                arguments = listOf(
+                    navArgument("source") {
+                        type = NavType.StringType
+                        defaultValue = "camera"
+                    }
+                )
+            ) { backStackEntry ->
+                val source = backStackEntry.arguments?.getString("source") ?: "camera"
                 val app = LocalContext.current.applicationContext
                     as com.example.snapeats.SnapEatsApplication
                 val scanViewModel: com.example.snapeats.ui.scan.ScanViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
@@ -72,6 +85,7 @@ fun SnapEatsNavGraph(
                 )
                 ScanScreen(
                     viewModel      = scanViewModel,
+                    initialSource  = source,
                     onNavigateBack = { navController.popBackStack() },
                     onMealLogged   = {
                         navController.navigate(Screen.Home.route) {
@@ -165,7 +179,8 @@ private fun SnapEatsBottomBar(navController: NavController) {
     val currentDestination = navBackStackEntry?.destination
 
     // Hide bottom bar on the Scan screen
-    val showBar = currentDestination?.route != Screen.Scan.route
+    val route = currentDestination?.route ?: ""
+    val showBar = !route.startsWith(Screen.Scan.route)
     if (!showBar) return
 
     NavigationBar {

@@ -22,6 +22,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,7 +49,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -90,14 +90,11 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.Executors
 
-// ---------------------------------------------------------------------------
-// ScanScreen entry point
-// ---------------------------------------------------------------------------
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScanScreen(
     viewModel: ScanViewModel,
+    initialSource: String = "camera",
     onNavigateBack: () -> Unit,
     onMealLogged: () -> Unit
 ) {
@@ -105,44 +102,55 @@ fun ScanScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // -----------------------------------------------------------------------
-    // Permission state
-    // -----------------------------------------------------------------------
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
                     == PackageManager.PERMISSION_GRANTED
         )
     }
-    var showRationaleDialog by remember { mutableStateOf(false) }
+    
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val bitmap = BitmapFactory.decodeStream(inputStream)
+                if (bitmap != null) {
+                    viewModel.processImage(bitmap)
+                }
+            } catch (e: Exception) {
+                scope.launch { snackbarHostState.showSnackbar("Failed to load image") }
+            }
+        } else if (initialSource == "gallery") {
+            onNavigateBack()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (initialSource == "gallery") {
+            galleryLauncher.launch("image/*")
+        }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
             hasCameraPermission = true
-        } else {
-            showRationaleDialog = true
         }
     }
 
     LaunchedEffect(Unit) {
-        if (!hasCameraPermission) {
+        if (initialSource == "camera" && !hasCameraPermission) {
             permissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
 
-    // -----------------------------------------------------------------------
-    // CameraX objects
-    // -----------------------------------------------------------------------
     val imageCaptureUseCase = remember { ImageCapture.Builder().build() }
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
 
-    // -----------------------------------------------------------------------
-    // Scan state
-    // -----------------------------------------------------------------------
     val scanState by viewModel.scanState.collectAsStateWithLifecycle()
-
     val displayedFoods = remember { mutableStateListOf<Food>() }
     var showBottomSheet by remember { mutableStateOf(false) }
     val bottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -161,21 +169,6 @@ fun ScanScreen(
         }
     }
 
-    if (showRationaleDialog) {
-        CameraRationaleDialog(
-            isPermanentlyDenied = false,
-            onDismiss = { showRationaleDialog = false; onNavigateBack() },
-            onGoToSettings = {
-                showRationaleDialog = false
-                context.openAppSettings()
-            },
-            onRetry = {
-                showRationaleDialog = false
-                permissionLauncher.launch(Manifest.permission.CAMERA)
-            }
-        )
-    }
-
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = Color.Black
@@ -186,101 +179,109 @@ fun ScanScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            if (hasCameraPermission) {
-                CameraPreview(
-                    imageCaptureUseCase = imageCaptureUseCase,
-                    modifier = Modifier.fillMaxSize()
-                )
+            if (initialSource == "camera") {
+                if (hasCameraPermission) {
+                    CameraPreview(
+                        imageCaptureUseCase = imageCaptureUseCase,
+                        modifier = Modifier.fillMaxSize()
+                    )
 
-                ScanOverlay(modifier = Modifier.fillMaxSize())
+                    ScanOverlay(modifier = Modifier.fillMaxSize())
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.45f))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White
-                        )
+                    if (scanState is ScanState.Scanning) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = Color.Black.copy(alpha = 0.65f)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(32.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                    Text(
+                                        text = "Identifying food…",
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                            }
+                        }
                     }
-                }
 
-                if (scanState is ScanState.Scanning) {
+                    if (scanState is ScanState.Idle || scanState is ScanState.Error) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .navigationBarsPadding()
+                                .padding(bottom = 32.dp),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            CaptureButton(
+                                onClick = {
+                                    captureAndProcess(
+                                        context = context,
+                                        imageCapture = imageCaptureUseCase,
+                                        executor = cameraExecutor,
+                                        onBitmapReady = { bitmap ->
+                                            viewModel.processImage(bitmap)
+                                        },
+                                        onError = { message ->
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar(message)
+                                            }
+                                        }
+                                    )
+                                }
+                            )
+                        }
+                    }
+                } else {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = Color.Black.copy(alpha = 0.65f)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(32.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                CircularProgressIndicator(
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(48.dp)
-                                )
-                                Text(
-                                    text = "Identifying food…",
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (scanState is ScanState.Idle || scanState is ScanState.Error) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .navigationBarsPadding()
-                            .padding(bottom = 32.dp),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        CaptureButton(
-                            onClick = {
-                                captureAndProcess(
-                                    context = context,
-                                    imageCapture = imageCaptureUseCase,
-                                    executor = cameraExecutor,
-                                    onBitmapReady = { bitmap ->
-                                        viewModel.processImage(bitmap)
-                                    },
-                                    onError = { message ->
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar(message)
-                                        }
-                                    }
-                                )
-                            }
+                        Text(
+                            text = "Camera permission is required.",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyLarge
                         )
                     }
                 }
-
             } else {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                // Gallery source loading state
+                if (scanState is ScanState.Scanning) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color.White)
+                    }
+                }
+            }
+
+            // Top bar — back button
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = onNavigateBack,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.45f))
                 ) {
-                    Text(
-                        text = "Camera permission is required to scan food.",
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(32.dp)
+                    Icon(
+                        imageVector = Icons.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color.White
                     )
                 }
             }
@@ -323,7 +324,6 @@ private fun CameraPreview(
     modifier: Modifier = Modifier
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
-    val context = LocalContext.current
 
     AndroidView(
         factory = { ctx ->
@@ -406,91 +406,6 @@ private fun ScanOverlay(modifier: Modifier = Modifier) {
                     )
                 )
         )
-
-        ScanCorners(modifier = Modifier.align(Alignment.Center))
-    }
-}
-
-@Composable
-private fun ScanCorners(modifier: Modifier = Modifier) {
-    val bracketColor = Color.White.copy(alpha = 0.9f)
-    val strokeWidth = 3.dp
-    val bracketLength = 28.dp
-    val boxSize = 240.dp
-
-    Box(
-        modifier = modifier.size(boxSize)
-    ) {
-        CornerBracket(
-            modifier = Modifier.align(Alignment.TopStart),
-            color = bracketColor,
-            strokeWidth = strokeWidth,
-            length = bracketLength,
-            flipHorizontal = false,
-            flipVertical = false
-        )
-        CornerBracket(
-            modifier = Modifier.align(Alignment.TopEnd),
-            color = bracketColor,
-            strokeWidth = strokeWidth,
-            length = bracketLength,
-            flipHorizontal = true,
-            flipVertical = false
-        )
-        CornerBracket(
-            modifier = Modifier.align(Alignment.BottomStart),
-            color = bracketColor,
-            strokeWidth = strokeWidth,
-            length = bracketLength,
-            flipHorizontal = false,
-            flipVertical = true
-        )
-        CornerBracket(
-            modifier = Modifier.align(Alignment.BottomEnd),
-            color = bracketColor,
-            strokeWidth = strokeWidth,
-            length = bracketLength,
-            flipHorizontal = true,
-            flipVertical = true
-        )
-    }
-}
-
-@Composable
-private fun CornerBracket(
-    modifier: Modifier = Modifier,
-    color: Color,
-    strokeWidth: androidx.compose.ui.unit.Dp,
-    length: androidx.compose.ui.unit.Dp,
-    flipHorizontal: Boolean,
-    flipVertical: Boolean
-) {
-    androidx.compose.foundation.Canvas(
-        modifier = modifier.size(length)
-    ) {
-        val sw = strokeWidth.toPx()
-        val l = length.toPx()
-        val halfSw = sw / 2f
-
-        val startX = if (flipHorizontal) l - halfSw else halfSw
-        val startY = if (flipVertical) l - halfSw else halfSw
-        val endX = if (flipHorizontal) halfSw else l - halfSw
-        val endY = if (flipVertical) halfSw else l - halfSw
-
-        drawLine(
-            color = color,
-            start = androidx.compose.ui.geometry.Offset(startX, startY),
-            end = androidx.compose.ui.geometry.Offset(endX, startY),
-            strokeWidth = sw,
-            cap = androidx.compose.ui.graphics.StrokeCap.Round
-        )
-        drawLine(
-            color = color,
-            start = androidx.compose.ui.geometry.Offset(startX, startY),
-            end = androidx.compose.ui.geometry.Offset(startX, endY),
-            strokeWidth = sw,
-            cap = androidx.compose.ui.graphics.StrokeCap.Round
-        )
     }
 }
 
@@ -562,7 +477,7 @@ private fun ScanResultsSheet(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No items — swipe to dismiss or cancel.",
+                    text = "No items.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -577,7 +492,7 @@ private fun ScanResultsSheet(
             ) {
                 items(
                     items = foods,
-                    key = { food -> food.name + food.calories }
+                    key = { food -> food.name + food.calories + Math.random() }
                 ) { food ->
                     SwipeableFoodItem(
                         food = food,
@@ -674,38 +589,6 @@ private fun SwipeableFoodItem(
     ) {
         FoodCard(food = food)
     }
-}
-
-@Composable
-private fun CameraRationaleDialog(
-    isPermanentlyDenied: Boolean,
-    onDismiss: () -> Unit,
-    onGoToSettings: () -> Unit,
-    onRetry: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Camera Permission Needed") },
-        text = {
-            Text(
-                if (isPermanentlyDenied) {
-                    "Camera access has been permanently denied. Please enable it in app settings to scan food."
-                } else {
-                    "SnapEats needs camera access to photograph your meals and identify foods automatically."
-                }
-            )
-        },
-        confirmButton = {
-            if (isPermanentlyDenied) {
-                TextButton(onClick = onGoToSettings) { Text("Open Settings") }
-            } else {
-                TextButton(onClick = onRetry) { Text("Allow") }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
 }
 
 private fun captureAndProcess(

@@ -129,9 +129,10 @@ dependencies {
     implementation("androidx.camera:camera-view:1.3.4")
 
     // -------------------------------------------------------------------------
-    // Google ML Kit — on-device object detection (food classification)
+    // Google ML Kit — on-device object detection & image labeling
     // -------------------------------------------------------------------------
     implementation("com.google.mlkit:object-detection:17.0.2")
+    implementation("com.google.mlkit:image-labeling:17.0.9")
 
     // Coroutines Play Services integration for .await()
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")

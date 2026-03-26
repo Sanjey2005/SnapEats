@@ -11,8 +11,8 @@ import com.example.snapeats.data.repository.FoodRepository
 import com.example.snapeats.domain.model.Food
 import com.example.snapeats.util.BitmapUtils
 import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.objects.ObjectDetection
-import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
+import com.google.mlkit.vision.label.ImageLabeling
+import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,13 +43,12 @@ class ScanViewModel(
     private val _scanState = MutableStateFlow<ScanState>(ScanState.Idle)
     val scanState: StateFlow<ScanState> = _scanState.asStateFlow()
 
-    private val objectDetector by lazy {
-        val options = ObjectDetectorOptions.Builder()
-            .setDetectorMode(ObjectDetectorOptions.SINGLE_IMAGE_MODE)
-            .enableMultipleObjects()
-            .enableClassification()
+    // Use Image Labeling for better descriptive tags (e.g., "Curry", "Bread", "Rice")
+    private val imageLabeler by lazy {
+        val options = ImageLabelerOptions.Builder()
+            .setConfidenceThreshold(0.6f) // Higher threshold for accuracy
             .build()
-        ObjectDetection.getClient(options)
+        ImageLabeling.getClient(options)
     }
 
     fun processImage(bitmap: Bitmap) {
@@ -59,38 +58,39 @@ class ScanViewModel(
             try {
                 val scaled = BitmapUtils.scaleBitmap(bitmap)
                 val inputImage = InputImage.fromBitmap(scaled, 0)
-                val detectedObjects = objectDetector.process(inputImage).await()
+                
+                // Get labels for the entire image
+                val labels = imageLabeler.process(inputImage).await()
 
-                Log.d(TAG, "ML Kit returned ${detectedObjects.size} object(s).")
+                Log.d(TAG, "ML Kit returned ${labels.size} labels.")
 
-                val foodLabels: List<String> = detectedObjects
-                    .flatMap { detectedObject ->
-                        detectedObject.labels.filter { label ->
-                            label.text.contains("Food", ignoreCase = true) &&
-                                    label.confidence > 0.5f
-                        }
-                    }
-                    .map { it.text }
-                    .distinct()
+                // Filter out generic labels like "Food", "Tableware", "Dishware", etc.
+                val filteredLabels = labels.filter { label ->
+                    val text = label.text.lowercase()
+                    val isGeneric = text in listOf("food", "tableware", "dishware", "plate", "dish", "cuisine", "recipe", "ingredient")
+                    !isGeneric && label.confidence > 0.6f
+                }
 
-                Log.d(TAG, "Food labels detected: $foodLabels")
+                val foodLabels = filteredLabels.map { it.text }.distinct()
+
+                Log.d(TAG, "Specific food labels detected: $foodLabels")
 
                 if (foodLabels.isEmpty()) {
-                    _scanState.value = ScanState.Error(
-                        "No food detected. Try moving closer or improving the lighting."
-                    )
+                    // Fallback: If no specific labels, but we have "Food", use the top label
+                    val hasFood = labels.any { it.text.lowercase() == "food" }
+                    if (hasFood && labels.isNotEmpty()) {
+                        // Use the most confident label that isn't just "Food" if possible
+                        val bestLabel = labels.firstOrNull { it.text.lowercase() != "food" }?.text ?: "Meal"
+                        processLabels(listOf(bestLabel), bitmap, scaled)
+                    } else {
+                        _scanState.value = ScanState.Error(
+                            "No food detected. Try moving closer or improving the lighting."
+                        )
+                    }
                     return@launch
                 }
 
-                val foods: List<Food> = foodLabels.map { label ->
-                    foodRepository.searchFood(label)
-                }
-
-                if (scaled !== bitmap) {
-                    scaled.recycle()
-                }
-
-                _scanState.value = ScanState.Results(foods)
+                processLabels(foodLabels, bitmap, scaled)
 
             } catch (e: Exception) {
                 Log.e(TAG, "processImage failed: ${e.message}", e)
@@ -99,6 +99,19 @@ class ScanViewModel(
                 )
             }
         }
+    }
+
+    private suspend fun processLabels(foodLabels: List<String>, original: Bitmap, scaled: Bitmap) {
+        // Look up nutritional data for every label
+        val foods: List<Food> = foodLabels.take(3).map { label ->
+            foodRepository.searchFood(label)
+        }
+
+        if (scaled !== original) {
+            scaled.recycle()
+        }
+
+        _scanState.value = ScanState.Results(foods)
     }
 
     fun addFoodsToLog(foods: List<Food>) {
@@ -145,7 +158,7 @@ class ScanViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        objectDetector.close()
+        imageLabeler.close()
     }
 
     companion object {
@@ -156,7 +169,7 @@ class ScanViewModel(
             mealLogDao: MealLogDao
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
                 return ScanViewModel(foodRepository, mealLogDao) as T
             }
         }
