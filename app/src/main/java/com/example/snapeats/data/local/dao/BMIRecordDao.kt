@@ -1,0 +1,21 @@
+package com.example.snapeats.data.local.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import com.example.snapeats.data.local.entity.BMIRecord
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface BMIRecordDao {
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRecord(record: BMIRecord)
+
+    @Query("SELECT * FROM bmi_record ORDER BY timestamp DESC")
+    fun getAllRecords(): Flow<List<BMIRecord>>
+
+    @Query("SELECT * FROM bmi_record ORDER BY timestamp DESC LIMIT :limit")
+    fun getRecentRecords(limit: Int): Flow<List<BMIRecord>>
+}
